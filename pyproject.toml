@@ -1,2 +1,16 @@
+[project]
+name = "ai-code-generator-agent"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "groq",
+    "google-genai",
+    "python-dotenv",
+    "pydantic",
+    "requests"
+]
+
 [tool.vercel]
 entrypoint = "backend.main:app"
