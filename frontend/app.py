@@ -1,63 +1,85 @@
 import streamlit as st
 import requests
 import time
+import os
 
 st.set_page_config(
-    page_title="AI Code Generator Agent",
+    page_title="AI Code Generator Agent (CIA-P)",
     page_icon="🤖",
     layout="wide"
 )
 
-BACKEND_URL = "http://127.0.0.1:8000"
+BACKEND_URL = os.getenv("BACKEND_URL", "http://127.0.0.1:8000")
 
 st.title("🤖 AI Code Generator & Self-Healing Agent")
-st.caption("Powered by LLM Agentic Loops, AST Static Security, and Isolated Sandboxing")
+st.caption("Authenticated REST API • AST Security Sandbox • Automated Webhook Notifications")
 
-# Sidebar
+# Sidebar Configuration
 with st.sidebar:
-    st.header("⚙️ Agent Settings")
+    st.header("🔐 Authentication & Webhooks")
+    api_key_input = st.text_input(
+        "App Access API Key (X-API-Key)", 
+        value="ist-cia-secret-key-2026", 
+        type="password"
+    )
+    webhook_url_input = st.text_input(
+        "Webhook URL (Optional)", 
+        placeholder="https://webhook.site/..."
+    )
     auto_exec = st.checkbox("Auto-execute in Sandbox", value=True)
+    
     st.markdown("---")
     st.markdown("### 🛡️ Safety Guards")
-    st.markdown("- **AST Security:** Blocks `os`, `sys`, `subprocess`, etc.")
-    st.markdown("- **No Hangs:** Interactive `input()` blocked.")
-    st.markdown("- **Timeouts:** 5s max execution limit.")
-    st.markdown("- **Self-Correction:** Auto-repairs runtime & syntax failures.")
+    st.markdown("- **API Auth:** Enforces `X-API-Key` header")
+    st.markdown("- **AST Security:** Blocks `os`, `sys`, `subprocess`")
+    st.markdown("- **Timeouts:** 5s max execution limit")
 
-# Input Form
+# Main Input Form
 with st.form("code_request_form"):
     user_prompt = st.text_area(
         "Enter your programming problem / requirements:",
-        placeholder="e.g. Write a Python function for binary search with test cases.",
+        placeholder="e.g. Write a Python function to merge two sorted lists with test calls.",
         height=100
     )
-    submitted = st.form_submit_button("🚀 Generate Code", use_container_width=True)
+    submitted = st.form_submit_button("🚀 Generate & Verify Code", use_container_width=True)
 
 if submitted:
     if not user_prompt.strip():
         st.warning("Please enter a valid problem statement.")
     else:
         start_time = time.time()
-        with st.spinner("Agent is analyzing, generating, validating, and testing code..."):
+        headers = {"X-API-Key": api_key_input}
+        payload = {
+            "prompt": user_prompt,
+            "auto_execute": auto_exec
+        }
+        if webhook_url_input.strip():
+            payload["webhook_url"] = webhook_url_input.strip()
+
+        with st.spinner("Agent is generating, validating, and running code..."):
             try:
                 response = requests.post(
                     f"{BACKEND_URL}/api/generate",
-                    json={"prompt": user_prompt, "auto_execute": auto_exec},
+                    json=payload,
+                    headers=headers,
                     timeout=60
                 )
                 duration = round(time.time() - start_time, 2)
+                
                 if response.status_code == 200:
                     data = response.json()
                     data["latency"] = f"{duration}s"
                     st.session_state["result"] = data
                     st.session_state["edited_code"] = data.get("code", "")
                     st.session_state["current_stdout"] = data.get("stdout", "")
+                elif response.status_code == 401:
+                    st.error("🔒 401 Unauthorized: Invalid X-API-Key provided in sidebar!")
                 else:
-                    st.error(f"Backend Error: {response.text}")
+                    st.error(f"Backend Error ({response.status_code}): {response.text}")
             except requests.exceptions.ConnectionError:
-                st.error("Cannot connect to FastAPI backend! Make sure FastAPI is running on http://127.0.0.1:8000.")
+                st.error("Cannot connect to FastAPI backend! Make sure FastAPI is running on port 8000.")
 
-# Results Display
+# Display Results
 if "result" in st.session_state:
     data = st.session_state["result"]
 
@@ -66,7 +88,7 @@ if "result" in st.session_state:
     m1.metric("Status", "Success" if data.get("success") else "Failed")
     m2.metric("Latency", data.get("latency", "N/A"))
     m3.metric("Self-Healing Retries", data.get("retries_taken", 0))
-    m4.metric("Security Check", "Passed (AST Safe)")
+    m4.metric("Webhook Status", data.get("webhook_status", "N/A"))
 
     col1, col2 = st.columns([1.2, 0.8])
 
@@ -75,11 +97,10 @@ if "result" in st.session_state:
         st.info(data.get("plan", "No plan available."))
 
         st.subheader("💻 Generated Code (Editable)")
-        # Editable code area so user can modify test inputs live
         edited_code = st.text_area(
             "Modify code or test inputs below:",
             value=st.session_state.get("edited_code", data.get("code", "")),
-            height=300
+            height=280
         )
         st.session_state["edited_code"] = edited_code
 
@@ -91,6 +112,7 @@ if "result" in st.session_state:
                         exec_res = requests.post(
                             f"{BACKEND_URL}/api/execute",
                             json={"code": edited_code, "timeout_seconds": 5},
+                            headers={"X-API-Key": api_key_input},
                             timeout=10
                         ).json()
                         if exec_res.get("success"):
@@ -122,7 +144,6 @@ if "result" in st.session_state:
         else:
             st.write("No console output recorded.")
 
-        # Self-correction logs expander
         history = data.get("history", [])
         if len(history) > 1:
             st.subheader("🔄 Agent Self-Correction Trace")
