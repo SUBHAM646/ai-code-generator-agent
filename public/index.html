@@ -7,20 +7,60 @@
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-950 text-gray-100 min-h-screen font-sans">
-    <div class="max-w-6xl mx-auto p-6">
-        <div class="border-b border-gray-800 pb-4 mb-6 flex justify-between items-center">
+
+    <!-- LOGIN SCREEN -->
+    <div id="loginScreen" class="min-h-screen flex items-center justify-center p-4">
+        <div class="max-w-md w-full bg-gray-900 border border-gray-800 rounded-xl p-8 shadow-2xl">
+            <div class="text-center mb-6">
+                <h1 class="text-2xl font-bold text-indigo-400">🤖 AI Code Generator Agent</h1>
+                <p class="text-gray-400 text-sm mt-1">Sign in to access the Self-Healing Code Sandbox</p>
+            </div>
+
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">Username</label>
+                    <input id="loginUser" type="text" placeholder="Enter username" class="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">Password</label>
+                    <input id="loginPass" type="password" placeholder="Enter password" class="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500">
+                </div>
+                <p id="loginError" class="hidden text-xs text-red-400 bg-red-950/50 border border-red-800 p-2 rounded"></p>
+                <button onclick="handleLogin()" id="loginBtn" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2.5 rounded-lg transition">
+                    🔐 Login
+                </button>
+            </div>
+
+            <div class="mt-6 pt-4 border-t border-gray-800 text-xs text-gray-400">
+                <p class="font-semibold text-gray-300 mb-1">Demo Credentials (For Faculty Review):</p>
+                <p>• Faculty: <code class="text-indigo-300">faculty</code> / <code class="text-indigo-300">admin123</code></p>
+                <p>• Student: <code class="text-indigo-300">biswajit</code> / <code class="text-indigo-300">ist2026</code></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN DASHBOARD (Hidden until logged in) -->
+    <div id="appScreen" class="hidden max-w-6xl mx-auto p-6">
+        <div class="border-b border-gray-800 pb-4 mb-6 flex flex-wrap justify-between items-center gap-4">
             <div>
                 <h1 class="text-3xl font-bold text-indigo-400">🤖 AI Code Generator & Self-Healing Agent</h1>
-                <p class="text-gray-400 text-sm mt-1">Authenticated REST API • AST Security Sandbox • Webhook Notifications</p>
+                <p class="text-gray-400 text-sm mt-1">Authenticated User Session • AST Security Sandbox • Webhook Notifications</p>
             </div>
-            <a href="/docs" target="_blank" class="bg-gray-800 hover:bg-gray-700 text-indigo-300 px-4 py-2 rounded text-sm border border-gray-700">
-                📄 API Docs (Swagger)
-            </a>
+            <div class="flex items-center space-x-3">
+                <span id="userBadge" class="bg-indigo-950 text-indigo-300 border border-indigo-800 px-3 py-1.5 rounded text-xs font-medium"></span>
+                <a href="/docs" target="_blank" class="bg-gray-800 hover:bg-gray-700 text-gray-200 px-3 py-1.5 rounded text-xs border border-gray-700">
+                    📄 API Docs
+                </a>
+                <button onclick="handleLogout()" class="bg-red-900/60 hover:bg-red-800 text-red-200 px-3 py-1.5 rounded text-xs border border-red-800">
+                    Logout
+                </button>
+            </div>
         </div>
 
+        <!-- Config Bar -->
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 bg-gray-900 p-4 rounded-lg border border-gray-800">
             <div>
-                <label class="block text-xs text-gray-400 mb-1">App Access API Key (X-API-Key)</label>
+                <label class="block text-xs text-gray-400 mb-1">App Access API Key (Optional Override)</label>
                 <input id="apiKey" type="password" value="ist-cia-secret-key-2026" class="w-full bg-gray-950 border border-gray-700 rounded px-3 py-2 text-sm text-white">
             </div>
             <div>
@@ -33,6 +73,7 @@
             </div>
         </div>
 
+        <!-- Prompt Box -->
         <div class="mb-6">
             <textarea id="prompt" rows="3" placeholder="Enter your coding problem (e.g., Write a Python function for binary search with test cases)..." class="w-full bg-gray-900 border border-gray-700 rounded-lg p-4 text-white focus:outline-none focus:border-indigo-500"></textarea>
             <button onclick="generateCode()" id="genBtn" class="mt-3 w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-3 rounded-lg transition">
@@ -40,6 +81,7 @@
             </button>
         </div>
 
+        <!-- Status Metrics -->
         <div id="metrics" class="hidden grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
             <div class="bg-gray-900 p-3 rounded border border-gray-800">
                 <span class="text-xs text-gray-400">Status</span>
@@ -59,6 +101,7 @@
             </div>
         </div>
 
+        <!-- Results Grid -->
         <div id="results" class="hidden grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div class="space-y-4">
                 <div class="bg-gray-900 p-4 rounded-lg border border-gray-800">
@@ -93,9 +136,77 @@
     </div>
 
     <script>
+        // Check existing session on load
+        window.onload = () => {
+            const token = localStorage.getItem('agent_token');
+            const user = localStorage.getItem('agent_user');
+            if (token && user) showApp(user);
+        };
+
+        function showApp(username) {
+            document.getElementById('loginScreen').classList.add('hidden');
+            document.getElementById('appScreen').classList.remove('hidden');
+            document.getElementById('userBadge').innerText = "👤 Logged in: " + username;
+        }
+
+        async function handleLogin() {
+            const username = document.getElementById('loginUser').value.trim();
+            const password = document.getElementById('loginPass').value;
+            const errBox = document.getElementById('loginError');
+            const btn = document.getElementById('loginBtn');
+
+            errBox.classList.add('hidden');
+            if (!username || !password) {
+                errBox.innerText = "Please enter both username and password.";
+                errBox.classList.remove('hidden');
+                return;
+            }
+
+            btn.disabled = true;
+            btn.innerText = "Verifying...";
+
+            try {
+                const res = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                const data = await res.json();
+                if (!res.ok) {
+                    errBox.innerText = data.detail || "Invalid credentials";
+                    errBox.classList.remove('hidden');
+                    return;
+                }
+                localStorage.setItem('agent_token', data.access_token);
+                localStorage.setItem('agent_user', data.username);
+                showApp(data.username);
+            } catch (err) {
+                errBox.innerText = "Login error: " + err;
+                errBox.classList.remove('hidden');
+            } finally {
+                btn.disabled = false;
+                btn.innerText = "🔐 Login";
+            }
+        }
+
+        function handleLogout() {
+            localStorage.removeItem('agent_token');
+            localStorage.removeItem('agent_user');
+            document.getElementById('appScreen').classList.add('hidden');
+            document.getElementById('loginScreen').classList.remove('hidden');
+        }
+
+        function getAuthHeaders() {
+            const token = localStorage.getItem('agent_token');
+            const apiKey = document.getElementById('apiKey').value.trim();
+            const headers = { 'Content-Type': 'application/json' };
+            if (token) headers['Authorization'] = 'Bearer ' + token;
+            if (apiKey) headers['X-API-Key'] = apiKey;
+            return headers;
+        }
+
         async function generateCode() {
             const prompt = document.getElementById('prompt').value.trim();
-            const apiKey = document.getElementById('apiKey').value.trim();
             const webhookUrl = document.getElementById('webhookUrl').value.trim();
             const autoExec = document.getElementById('autoExec').checked;
 
@@ -112,13 +223,14 @@
             try {
                 const res = await fetch('/api/generate', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-API-Key': apiKey },
+                    headers: getAuthHeaders(),
                     body: JSON.stringify(body)
                 });
                 const duration = ((performance.now() - start) / 1000).toFixed(2) + "s";
 
                 if (res.status === 401) {
-                    alert("🔒 401 Unauthorized: Invalid X-API-Key!");
+                    alert("🔒 Session expired or unauthorized! Please login again.");
+                    handleLogout();
                     return;
                 }
                 const data = await res.json();
@@ -146,12 +258,11 @@
 
         async function rerunCode() {
             const code = document.getElementById('codeEditor').value;
-            const apiKey = document.getElementById('apiKey').value.trim();
             document.getElementById('stdoutBox').innerText = "Running...";
 
             const res = await fetch('/api/execute', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-API-Key': apiKey },
+                headers: getAuthHeaders(),
                 body: JSON.stringify({ code, timeout_seconds: 5 })
             });
             const data = await res.json();
